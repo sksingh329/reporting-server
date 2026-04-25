@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+reporting.db
+.git/
+smoke_test.py
+config.ini

@@ -1,0 +1,75 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import relationship
+
+from app.db.session import Base
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+
+    test_cases = relationship("TestCase", back_populates="project", cascade="all, delete-orphan")
+
+
+class TestCase(Base):
+    """Stable identity for a test within a project. One row per unique test name."""
+
+    __tablename__ = "test_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(512), nullable=False, index=True)
+
+    __table_args__ = (UniqueConstraint("project_id", "name"),)
+
+    project = relationship("Project", back_populates="test_cases")
+    executions = relationship("TestExecution", back_populates="test_case", cascade="all, delete-orphan")
+
+
+class TestExecution(Base):
+    """One row per execution (run) of a TestCase."""
+
+    __tablename__ = "test_executions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    test_case_id = Column(Integer, ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(16), nullable=False, index=True)  # passed | failed | skipped | error
+    duration_ms = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+    reported_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+    log_storage_key = Column(String(1024), nullable=True)
+
+    test_case = relationship("TestCase", back_populates="executions")
+    screenshots = relationship("TestScreenshot", back_populates="test_execution", cascade="all, delete-orphan")
+
+
+class TestScreenshot(Base):
+    __tablename__ = "test_screenshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    test_execution_id = Column(Integer, ForeignKey("test_executions.id", ondelete="CASCADE"), nullable=False, index=True)
+    storage_key = Column(String(1024), nullable=False)
+    step_name = Column(String(255), nullable=True)
+    taken_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+    is_failure_screenshot = Column(Boolean, nullable=False, default=False)
+
+    test_execution = relationship("TestExecution", back_populates="screenshots")
