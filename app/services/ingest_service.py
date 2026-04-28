@@ -78,9 +78,15 @@ def _build_execution_out(execution: TestExecution) -> TestExecutionOut:
 
     for sc_out, sc_db in zip(out.screenshots, execution.screenshots):
         try:
-            sc_out.download_url = storage_service.generate_download_url(sc_db.storage_key)
+            import base64
+            import mimetypes
+            data = storage_service.fetch_object(sc_db.storage_key)
+            mime, _ = mimetypes.guess_type(sc_db.storage_key)
+            if not mime or not mime.startswith("image/"):
+                mime = "image/png"
+            sc_out.image_data = f"data:{mime};base64,{base64.b64encode(data).decode()}"
         except Exception:
-            sc_out.download_url = None
+            sc_out.image_data = None
 
     return out
 

@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
@@ -61,13 +61,12 @@ async def create_test_case(
     duration_ms: Optional[float] = Form(None),
     error_message: Optional[str] = Form(None),
     log_text: Optional[str] = Form(None),
-    screenshot: Optional[UploadFile] = File(None),
-    step_name: Optional[str] = Form(None),
+    screenshots: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ) -> TestCaseOut:
     """Ingest one test execution. Returns 404 if the project does not exist."""
     log_storage_key: Optional[str] = None
-    screenshots: list[ScreenshotIn] = []
+    screenshot_ins: list[ScreenshotIn] = []
 
     if log_text is not None:
         log_key = (
@@ -78,7 +77,7 @@ async def create_test_case(
         storage_service.upload_file(log_key, log_text.encode("utf-8"), "text/plain")
         log_storage_key = log_key
 
-    if screenshot is not None:
+    for idx, screenshot in enumerate(screenshots):
         file_bytes = await screenshot.read()
         filename = screenshot.filename or "screenshot.png"
         content_type = screenshot.content_type or "image/png"
@@ -88,7 +87,8 @@ async def create_test_case(
             f"/{uuid.uuid4().hex[:8]}-{_safe_segment(filename)}"
         )
         storage_service.upload_file(storage_key, file_bytes, content_type)
-        screenshots.append(ScreenshotIn(
+        step_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+        screenshot_ins.append(ScreenshotIn(
             storage_key=storage_key,
             step_name=step_name,
             is_failure_screenshot=(test_status == "failed"),
@@ -103,7 +103,7 @@ async def create_test_case(
                 duration_ms=duration_ms,
                 error_message=error_message,
                 log_storage_key=log_storage_key,
-                screenshots=screenshots,
+                screenshots=screenshot_ins,
             ),
             db,
         )
@@ -167,3 +167,6 @@ def get_execution(
     if result is None:
         raise HTTPException(status_code=_404, detail="Execution not found")
     return result
+
+
+
