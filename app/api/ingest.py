@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.security import get_current_user, require_admin
 from app.db.session import get_db
 from app.schemas.test_run import (
     ProjectCreate,
@@ -27,17 +28,17 @@ _404 = status.HTTP_404_NOT_FOUND
 # ---------------------------------------------------------------------------
 
 @router.get("/projects", response_model=list[ProjectOut], summary="List all projects")
-def list_projects(db: Session = Depends(get_db)) -> list[ProjectOut]:
+def list_projects(db: Session = Depends(get_db), _=Depends(get_current_user)) -> list[ProjectOut]:
     return ingest_service.list_projects(db)
 
 
 @router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED, summary="Create a project")
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> ProjectOut:
+def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _=Depends(require_admin)) -> ProjectOut:
     return ingest_service.create_project(payload, db)
 
 
 @router.get("/projects/{project_id}", response_model=ProjectOut, summary="Get a project")
-def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectOut:
+def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> ProjectOut:
     result = ingest_service.get_project(project_id, db)
     if result is None:
         raise HTTPException(status_code=_404, detail="Project not found")
@@ -63,6 +64,7 @@ async def create_test_case(
     log_text: Optional[str] = Form(None),
     screenshots: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ) -> TestCaseOut:
     """Ingest one test execution. Returns 404 if the project does not exist."""
     log_storage_key: Optional[str] = None
@@ -120,6 +122,7 @@ def list_test_cases(
     project_id: int,
     status: Optional[str] = Query(None, description="Filter by status: passed | failed | skipped | error"),
     db: Session = Depends(get_db),
+    _=Depends(get_current_user),
 ) -> list[TestCaseSummaryOut]:
     result = ingest_service.list_test_cases(project_id, db, status_filter=status)
     if result is None:
@@ -132,7 +135,7 @@ def list_test_cases(
     response_model=TestCaseOut,
     summary="Get a test case with all its executions",
 )
-def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_db)) -> TestCaseOut:
+def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> TestCaseOut:
     result = ingest_service.get_test_case(project_id, test_case_id, db)
     if result is None:
         raise HTTPException(status_code=_404, detail="Test case not found")
@@ -148,7 +151,7 @@ def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_
     response_model=list[TestExecutionOut],
     summary="List all executions of a test case",
 )
-def list_executions(project_id: int, test_case_id: int, db: Session = Depends(get_db)) -> list[TestExecutionOut]:
+def list_executions(project_id: int, test_case_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> list[TestExecutionOut]:
     result = ingest_service.list_executions(project_id, test_case_id, db)
     if result is None:
         raise HTTPException(status_code=_404, detail="Test case not found")
@@ -161,7 +164,7 @@ def list_executions(project_id: int, test_case_id: int, db: Session = Depends(ge
     summary="Get a single execution",
 )
 def get_execution(
-    project_id: int, test_case_id: int, execution_id: int, db: Session = Depends(get_db)
+    project_id: int, test_case_id: int, execution_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)
 ) -> TestExecutionOut:
     result = ingest_service.get_execution(project_id, test_case_id, execution_id, db)
     if result is None:

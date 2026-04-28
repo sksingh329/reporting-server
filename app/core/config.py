@@ -36,6 +36,12 @@ class Settings:
     STORAGE_REGION: str = ""
     PRESIGNED_URL_EXPIRY: int = 3600
 
+    # JWT auth
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_EXPIRE_MINUTES: int = 30
+    JWT_REFRESH_EXPIRE_DAYS: int = 30
+
 
 def _load_settings() -> Settings:
     return Settings(
@@ -46,6 +52,10 @@ def _load_settings() -> Settings:
         STORAGE_BUCKET=_get("STORAGE_BUCKET", "test-artifacts"),
         STORAGE_REGION=_get("STORAGE_REGION", "us-east-1"),
         PRESIGNED_URL_EXPIRY=int(_get("PRESIGNED_URL_EXPIRY", "3600")),
+        JWT_SECRET=_get("JWT_SECRET", "change-me-in-production"),
+        JWT_ALGORITHM=_get("JWT_ALGORITHM", "HS256"),
+        JWT_ACCESS_EXPIRE_MINUTES=int(_get("JWT_ACCESS_EXPIRE_MINUTES", "30")),
+        JWT_REFRESH_EXPIRE_DAYS=int(_get("JWT_REFRESH_EXPIRE_DAYS", "30")),
     )
 
 
