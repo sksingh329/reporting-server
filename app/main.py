@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from app.api.auth import router as auth_router
 from app.api.ingest import router as ingest_router
 from app.db.session import engine
 from app.db import models  # noqa: F401 — ensure models are registered before create_all
@@ -116,6 +117,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(auth_router)
 app.include_router(ingest_router)
 
 
