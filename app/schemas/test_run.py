@@ -51,7 +51,7 @@ class ScreenshotOut(BaseModel):
     step_name: Optional[str]
     taken_at: datetime
     is_failure_screenshot: bool
-    download_url: Optional[str] = None
+    image_data: Optional[str] = None  # base64 data URI, usable as <img src> directly
 
     model_config = {"from_attributes": True}
 
