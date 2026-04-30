@@ -32,6 +32,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
 
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    settings = relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class RefreshToken(Base):
@@ -45,6 +46,20 @@ class RefreshToken(Base):
     created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
 
     user = relationship("User", back_populates="refresh_tokens")
+
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    app_theme = Column(String(16), nullable=False, default="light")        # light | dark
+    log_popup_theme = Column(String(16), nullable=False, default="dark")   # light | dark
+    timezone = Column(String(64), nullable=False, default="UTC")           # IANA tz name
+    default_project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    duration_unit = Column(String(4), nullable=False, default="ms")        # ms | s
+
+    user = relationship("User", back_populates="settings")
 
 
 class Project(Base):
