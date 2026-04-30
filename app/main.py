@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.ingest import router as ingest_router
+from app.api.users import router as users_router
 from app.db.session import engine
 from app.db import models  # noqa: F401 — ensure models are registered before create_all
 
@@ -118,6 +119,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(ingest_router)
 
 

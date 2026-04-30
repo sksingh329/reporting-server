@@ -62,3 +62,22 @@ class AdminResetPasswordRequest(BaseModel):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         return v
+
+
+class UserSettingsOut(BaseModel):
+    user_id: int
+    app_theme: str
+    log_popup_theme: str
+    timezone: str
+    default_project_id: Optional[int]
+    duration_unit: str
+
+    model_config = {"from_attributes": True}
+
+
+class UserSettingsUpdate(BaseModel):
+    app_theme: Optional[Literal["light", "dark"]] = None
+    log_popup_theme: Optional[Literal["light", "dark"]] = None
+    timezone: Optional[str] = None
+    default_project_id: Optional[int] = None
+    duration_unit: Optional[Literal["ms", "s"]] = None

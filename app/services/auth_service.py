@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password, create_refresh_token_value
 from app.core.config import settings
-from app.db.models import RefreshToken, User
-from app.schemas.auth import UserCreate, UserOut
+from app.db.models import RefreshToken, User, UserSettings
+from app.schemas.auth import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
 
 
 # ---------------------------------------------------------------------------
@@ -107,3 +107,26 @@ def revoke_refresh_token(raw: str, db: Session) -> None:
 def revoke_all_refresh_tokens(user_id: int, db: Session) -> None:
     db.query(RefreshToken).filter(RefreshToken.user_id == user_id).update({"revoked": True})
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# User settings helpers
+# ---------------------------------------------------------------------------
+
+def get_or_create_settings(user_id: int, db: Session) -> UserSettings:
+    record = db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
+    if record is None:
+        record = UserSettings(user_id=user_id)
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+    return record
+
+
+def update_settings(user_id: int, payload: UserSettingsUpdate, db: Session) -> UserSettingsOut:
+    record = get_or_create_settings(user_id, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(record, field, value)
+    db.commit()
+    db.refresh(record)
+    return UserSettingsOut.model_validate(record)
