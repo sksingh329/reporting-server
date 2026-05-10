@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password, create_refresh_token_value
 from app.core.config import settings
 from app.db.models import RefreshToken, User, UserSettings
-from app.schemas.auth import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
+from app.schemas.user import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
 
 
 # ---------------------------------------------------------------------------
