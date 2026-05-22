@@ -44,6 +44,10 @@ def create_user(payload: UserCreate, db: Session) -> UserOut:
     db.refresh(user)
     return UserOut.model_validate(user)
 
+def delete_user(user: User, db: Session) -> None:
+    db.delete(user)
+    db.commit()
+
 
 def authenticate_user(username: str, password: str, db: Session) -> Optional[User]:
     user = get_user_by_username(username, db)

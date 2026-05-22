@@ -84,7 +84,16 @@ def get_user(
     return UserOut.model_validate(user)
 
 
-
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user (admin only)")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> None:
+    user = auth_service.get_user_by_id(user_id, db)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    auth_service.delete_user(user, db)
 
 
 # ---------------------------------------------------------------------------
