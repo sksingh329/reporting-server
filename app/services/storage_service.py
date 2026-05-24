@@ -107,6 +107,16 @@ class StorageService:
         ]
         return "/".join(parts)
 
+    def delete_prefix(self, prefix: str) -> None:
+        """Delete all objects whose key starts with *prefix*."""
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            objects = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
+            if objects:
+                self._client.delete_objects(
+                    Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
+                )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

@@ -45,6 +45,22 @@ def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_cu
     return result
 
 
+@router.delete(
+    "/projects/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a project and all its data (admin only)",
+)
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> None:
+    result = ingest_service.get_project(project_id, db)
+    if result is None:
+        raise HTTPException(status_code=_404, detail="Project not found")
+    ingest_service.delete_project(project_id, db)
+
+
 # ---------------------------------------------------------------------------
 # Test cases
 # ---------------------------------------------------------------------------

@@ -205,3 +205,12 @@ def get_execution(project_id: int, test_case_id: int, execution_id: int, db: Ses
     )
     return _build_execution_out(execution) if execution else None
 
+
+def delete_project(project_id: int, db: Session) -> None:
+    from app.services.storage_service import storage_service
+    storage_service.delete_prefix(f"screenshots/{project_id}/")
+    storage_service.delete_prefix(f"logs/{project_id}/")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    db.delete(project)
+    db.commit()
+
