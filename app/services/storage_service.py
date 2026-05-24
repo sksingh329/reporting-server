@@ -117,6 +117,15 @@ class StorageService:
                     Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
                 )
 
+    def delete_objects(self, keys: list[str]) -> None:
+        """Delete a specific list of objects by their storage keys."""
+        if not keys:
+            return
+        objects = [{"Key": k} for k in keys]
+        self._client.delete_objects(
+            Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

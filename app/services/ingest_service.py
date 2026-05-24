@@ -214,3 +214,45 @@ def delete_project(project_id: int, db: Session) -> None:
     db.delete(project)
     db.commit()
 
+
+def delete_test_case(project_id: int, test_case_id: int, db: Session) -> bool:
+    """Delete a test case and its MinIO artifacts. Returns False if not found."""
+    from app.services.storage_service import storage_service, _safe_segment
+    test_case = (
+        db.query(TestCase)
+        .filter(TestCase.id == test_case_id, TestCase.project_id == project_id)
+        .first()
+    )
+    if test_case is None:
+        return False
+    safe_name = _safe_segment(test_case.name)
+    storage_service.delete_prefix(f"screenshots/{project_id}/{safe_name}/")
+    storage_service.delete_prefix(f"logs/{project_id}/{safe_name}/")
+    db.delete(test_case)
+    db.commit()
+    return True
+
+
+def delete_execution(project_id: int, test_case_id: int, execution_id: int, db: Session) -> bool:
+    """Delete a single execution and its MinIO artifacts. Returns False if not found."""
+    from app.services.storage_service import storage_service
+    execution = (
+        db.query(TestExecution)
+        .join(TestCase)
+        .filter(
+            TestExecution.id == execution_id,
+            TestExecution.test_case_id == test_case_id,
+            TestCase.project_id == project_id,
+        )
+        .first()
+    )
+    if execution is None:
+        return False
+    keys_to_delete = [s.storage_key for s in execution.screenshots]
+    if execution.log_storage_key:
+        keys_to_delete.append(execution.log_storage_key)
+    storage_service.delete_objects(keys_to_delete)
+    db.delete(execution)
+    db.commit()
+    return True
+

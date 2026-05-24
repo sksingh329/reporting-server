@@ -158,6 +158,22 @@ def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_
     return result
 
 
+@router.delete(
+    "/projects/{project_id}/test-cases/{test_case_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a test case and all its executions (admin only)",
+)
+def delete_test_case(
+    project_id: int,
+    test_case_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> None:
+    deleted = ingest_service.delete_test_case(project_id, test_case_id, db)
+    if not deleted:
+        raise HTTPException(status_code=_404, detail="Test case not found")
+
+
 # ---------------------------------------------------------------------------
 # Executions
 # ---------------------------------------------------------------------------
@@ -186,6 +202,23 @@ def get_execution(
     if result is None:
         raise HTTPException(status_code=_404, detail="Execution not found")
     return result
+
+
+@router.delete(
+    "/projects/{project_id}/test-cases/{test_case_id}/executions/{execution_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a single execution and its artifacts (admin only)",
+)
+def delete_execution(
+    project_id: int,
+    test_case_id: int,
+    execution_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> None:
+    deleted = ingest_service.delete_execution(project_id, test_case_id, execution_id, db)
+    if not deleted:
+        raise HTTPException(status_code=_404, detail="Execution not found")
 
 
 
