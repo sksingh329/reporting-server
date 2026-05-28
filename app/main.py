@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.ingest import router as ingest_router
+from app.api.service_tokens import router as service_tokens_router
 from app.api.users import router as users_router
 from app.db.session import engine
 from app.db import models  # noqa: F401 — ensure models are registered before create_all
@@ -108,6 +109,39 @@ def _migrate(engine) -> None:
 
 
 _migrate(engine)
+
+
+def _ensure_columns(engine) -> None:
+    """Add new columns to existing tables without dropping data (SQLite ALTER TABLE)."""
+    with engine.connect() as conn:
+        tables = {r[0] for r in conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )).fetchall()}
+        if "test_executions" not in tables:
+            return  # fresh DB — create_all will handle everything
+        existing_cols = {r[1] for r in conn.execute(text(
+            "PRAGMA table_info(test_executions)"
+        )).fetchall()}
+        if "submitted_by_user_id" not in existing_cols:
+            conn.execute(text(
+                "ALTER TABLE test_executions ADD COLUMN submitted_by_user_id INTEGER "
+                "REFERENCES users(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+        if "submitted_by_token_id" not in existing_cols:
+            conn.execute(text(
+                "ALTER TABLE test_executions ADD COLUMN submitted_by_token_id INTEGER "
+                "REFERENCES service_tokens(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+        if "environment" not in existing_cols:
+            conn.execute(text(
+                "ALTER TABLE test_executions ADD COLUMN environment VARCHAR(128) NOT NULL DEFAULT 'default'"
+            ))
+            conn.commit()
+
+
+_ensure_columns(engine)
 models.Base.metadata.create_all(bind=engine)
 
 
@@ -120,6 +154,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(service_tokens_router)
 app.include_router(ingest_router)
 
 

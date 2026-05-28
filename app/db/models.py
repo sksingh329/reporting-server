@@ -58,6 +58,7 @@ class UserSettings(Base):
     timezone = Column(String(64), nullable=False, default="UTC")           # IANA tz name
     default_project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     duration_unit = Column(String(4), nullable=False, default="ms")        # ms | s
+    default_environment = Column(String(64), nullable=True)                 # e.g. staging, production
 
     user = relationship("User", back_populates="settings")
 
@@ -94,14 +95,35 @@ class TestExecution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     test_case_id = Column(Integer, ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    environment = Column(String(128), nullable=False, default="default", index=True)
     status = Column(String(16), nullable=False, index=True)  # passed | failed | skipped | error
     duration_ms = Column(Float, nullable=True)
     error_message = Column(Text, nullable=True)
     reported_at = Column(DateTime(timezone=True), default=_now, nullable=False)
     log_storage_key = Column(String(1024), nullable=True)
+    submitted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    submitted_by_token_id = Column(Integer, ForeignKey("service_tokens.id", ondelete="SET NULL"), nullable=True)
 
     test_case = relationship("TestCase", back_populates="executions")
     screenshots = relationship("TestScreenshot", back_populates="test_execution", cascade="all, delete-orphan")
+    submitted_by_user = relationship("User", foreign_keys=[submitted_by_user_id])
+    submitted_by_token = relationship("ServiceToken", foreign_keys=[submitted_by_token_id])
+
+
+class ServiceToken(Base):
+    __tablename__ = "service_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    role = Column(String(16), nullable=False, default="user")  # admin | user
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_now, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
 
 
 class TestScreenshot(Base):

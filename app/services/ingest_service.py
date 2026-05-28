@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.db.models import Project, TestCase, TestExecution, TestScreenshot
-from app.schemas.test_run import ProjectCreate, ProjectOut, TestCaseCreate, TestCaseOut, TestCaseSummaryOut, TestExecutionOut
+from app.schemas.test_run import ProjectCreate, ProjectOut, SubmittedByOut, TestCaseCreate, TestCaseOut, TestCaseSummaryOut, TestExecutionOut
 
 
 def create_project(payload: ProjectCreate, db: Session) -> ProjectOut:
@@ -36,7 +36,12 @@ def _find_or_create_test_case(project_id: int, test_name: str, db: Session) -> T
     return test_case
 
 
-def ingest_test_case(payload: TestCaseCreate, db: Session) -> TestCaseOut:
+def ingest_test_case(
+    payload: TestCaseCreate,
+    db: Session,
+    submitted_by_user_id: Optional[int] = None,
+    submitted_by_token_id: Optional[int] = None,
+) -> TestCaseOut:
     project = db.query(Project).filter(Project.id == payload.project_id).first()
     if project is None:
         raise ValueError(f"Project {payload.project_id} not found")
@@ -44,10 +49,13 @@ def ingest_test_case(payload: TestCaseCreate, db: Session) -> TestCaseOut:
 
     execution = TestExecution(
         test_case_id=test_case.id,
+        environment=payload.environment,
         status=payload.status,
         duration_ms=payload.duration_ms,
         error_message=payload.error_message,
         log_storage_key=payload.log_storage_key,
+        submitted_by_user_id=submitted_by_user_id,
+        submitted_by_token_id=submitted_by_token_id,
     )
     db.add(execution)
     db.flush()
@@ -88,6 +96,11 @@ def _build_execution_out(execution: TestExecution) -> TestExecutionOut:
         except Exception:
             sc_out.image_data = None
 
+    if execution.submitted_by_user_id and execution.submitted_by_user:
+        out.submitted_by = SubmittedByOut(type="user", name=execution.submitted_by_user.username)
+    elif execution.submitted_by_token_id and execution.submitted_by_token:
+        out.submitted_by = SubmittedByOut(type="service_token", name=execution.submitted_by_token.name)
+
     return out
 
 
@@ -109,6 +122,7 @@ def list_test_cases(
     project_id: int,
     db: Session,
     status_filter: Optional[str] = None,
+    environment_filter: Optional[str] = None,
 ) -> Optional[list[TestCaseSummaryOut]]:
     project = db.query(Project).filter(Project.id == project_id).first()
     if project is None:
@@ -147,6 +161,8 @@ def list_test_cases(
     )
     if status_filter:
         query = query.filter(TestExecution.status == status_filter)
+    if environment_filter:
+        query = query.filter(TestExecution.environment == environment_filter)
 
     results = []
     for test_case, latest_exec, total, fails in query.order_by(TestCase.id).all():
@@ -163,7 +179,12 @@ def list_test_cases(
     return results
 
 
-def list_executions(project_id: int, test_case_id: int, db: Session) -> Optional[list[TestExecutionOut]]:
+def list_executions(
+    project_id: int,
+    test_case_id: int,
+    db: Session,
+    environment_filter: Optional[str] = None,
+) -> Optional[list[TestExecutionOut]]:
     test_case = (
         db.query(TestCase)
         .filter(TestCase.id == test_case_id, TestCase.project_id == project_id)
@@ -171,7 +192,10 @@ def list_executions(project_id: int, test_case_id: int, db: Session) -> Optional
     )
     if test_case is None:
         return None
-    return [_build_execution_out(e) for e in test_case.executions]
+    executions = test_case.executions
+    if environment_filter:
+        executions = [e for e in executions if e.environment == environment_filter]
+    return [_build_execution_out(e) for e in executions]
 
 
 # ---------------------------------------------------------------------------
