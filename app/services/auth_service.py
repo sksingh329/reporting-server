@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password, create_refresh_token_value
 from app.core.config import settings
 from app.db.models import RefreshToken, User, UserSettings
-from app.schemas.auth import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
+from app.schemas.user import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +43,10 @@ def create_user(payload: UserCreate, db: Session) -> UserOut:
     db.commit()
     db.refresh(user)
     return UserOut.model_validate(user)
+
+def delete_user(user: User, db: Session) -> None:
+    db.delete(user)
+    db.commit()
 
 
 def authenticate_user(username: str, password: str, db: Session) -> Optional[User]:
