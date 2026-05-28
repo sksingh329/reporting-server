@@ -29,6 +29,7 @@ services:
       STORAGE_REGION: us-east-1
       PRESIGNED_URL_EXPIRY: "3600"
       JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - ${DATA_PATH}:/data
     depends_on:
