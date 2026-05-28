@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -61,7 +62,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: Session = Depends(get_db),
 ):
-    """Validate Bearer token and return the active User ORM object."""
+    """Validate Bearer JWT and return the active User ORM object. JWT-only — use get_auth_principal for service token support."""
     from app.db.models import User
 
     payload = _decode_token(credentials.credentials)
@@ -79,8 +80,63 @@ def get_current_user(
     return user
 
 
-def require_admin(current_user=Depends(get_current_user)):
-    """Dependency that also enforces admin role."""
-    if current_user.role != "admin":
+# ---------------------------------------------------------------------------
+# Service-token-aware principal
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AuthPrincipal:
+    """Unified principal that represents either a JWT user or a service token."""
+    id: int
+    role: str
+    display_name: str
+    is_service_token: bool = False
+
+
+def get_auth_principal(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> AuthPrincipal:
+    """Accept either a JWT access token or a service token (rpt_ prefix)."""
+    token = credentials.credentials
+
+    if token.startswith("rpt_"):
+        from app.services.auth_service import validate_service_token
+        record = validate_service_token(token, db)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid, expired, or revoked service token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return AuthPrincipal(
+            id=record.id,
+            role=record.role,
+            display_name=record.name,
+            is_service_token=True,
+        )
+
+    # JWT path
+    from app.db.models import User
+    payload = _decode_token(token)
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    username: Optional[str] = payload.get("sub")
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+    user = db.query(User).filter(User.username == username).first()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    return AuthPrincipal(
+        id=user.id,
+        role=user.role,
+        display_name=user.username,
+        is_service_token=False,
+    )
+
+
+def require_admin(principal: AuthPrincipal = Depends(get_auth_principal)) -> AuthPrincipal:
+    """Dependency that enforces admin role for both JWT users and service tokens."""
+    if principal.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return current_user
+    return principal

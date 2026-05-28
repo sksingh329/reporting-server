@@ -59,6 +59,7 @@ class UserSettingsOut(BaseModel):
     timezone: str
     default_project_id: Optional[int]
     duration_unit: str
+    default_environment: Optional[str]
 
     model_config = {"from_attributes": True}
 
@@ -69,3 +70,4 @@ class UserSettingsUpdate(BaseModel):
     timezone: Optional[str] = None
     default_project_id: Optional[int] = None
     duration_unit: Optional[Literal["ms", "s"]] = None
+    default_environment: Optional[str] = None

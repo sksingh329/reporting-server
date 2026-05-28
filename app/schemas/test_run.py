@@ -27,6 +27,7 @@ class TestCaseCreate(BaseModel):
     project_id: int
     test_name: str
     status: TestStatus
+    environment: str = "default"
     duration_ms: Optional[float] = None
     error_message: Optional[str] = None
     log_storage_key: Optional[str] = None
@@ -56,15 +57,22 @@ class ScreenshotOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SubmittedByOut(BaseModel):
+    type: str  # "user" | "service_token"
+    name: str
+
+
 class TestExecutionOut(BaseModel):
     id: int
     test_case_id: int
+    environment: str
     status: str
     duration_ms: Optional[float]
     error_message: Optional[str]
     reported_at: datetime
     log: Optional[str] = None
     screenshots: List[ScreenshotOut] = []
+    submitted_by: Optional[SubmittedByOut] = None
 
     model_config = {"from_attributes": True}
 

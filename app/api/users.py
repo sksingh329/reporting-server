@@ -18,7 +18,7 @@ from app.schemas.user import (
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-@router.get("/settings", response_model=UserSettingsOut, summary="Get current user's settings")
+@router.get("/settings", response_model=UserSettingsOut, summary="Get current user's settings [any · JWT only]")
 def get_settings(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -26,7 +26,7 @@ def get_settings(
     return UserSettingsOut.model_validate(auth_service.get_or_create_settings(current_user.id, db))
 
 
-@router.put("/settings", response_model=UserSettingsOut, summary="Update current user's settings")
+@router.put("/settings", response_model=UserSettingsOut, summary="Update current user's settings [any · JWT only]")
 def update_settings(
     payload: UserSettingsUpdate,
     db: Session = Depends(get_db),
@@ -46,7 +46,7 @@ def update_settings(
     "",
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new user (admin only)",
+    summary="Create a new user [admin · JWT only]",
 )
 def create_user(
     payload: UserCreate,
@@ -59,7 +59,7 @@ def create_user(
     return auth_service.create_user(payload, db)
 
 
-@router.get("", response_model=list[UserOut], summary="List all users (admin only)")
+@router.get("", response_model=list[UserOut], summary="List all users [admin · JWT only]")
 def list_users(
     db: Session = Depends(get_db),
     _: object = Depends(require_admin),
@@ -67,12 +67,12 @@ def list_users(
     return auth_service.list_users(db)
 
 
-@router.get("/me", response_model=UserOut, summary="Get current user's profile and role")
+@router.get("/me", response_model=UserOut, summary="Get current user's profile and role [any · JWT only]")
 def get_me(current_user=Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(current_user)
 
 
-@router.get("/{user_id}", response_model=UserOut, summary="Get a user's profile and role (admin only)")
+@router.get("/{user_id}", response_model=UserOut, summary="Get a user's profile and role [admin · JWT only]")
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
@@ -84,7 +84,7 @@ def get_user(
     return UserOut.model_validate(user)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user (admin only)")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user [admin · JWT only]")
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
@@ -100,7 +100,7 @@ def delete_user(
 # Password management
 # ---------------------------------------------------------------------------
 
-@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT, summary="Change own password")
+@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT, summary="Change own password [any · JWT only]")
 def change_password(
     payload: ChangePasswordRequest,
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def change_password(
 @router.post(
     "/{user_id}/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Reset any user's password (admin only)",
+    summary="Reset any user's password [admin · JWT only]",
 )
 def admin_reset_password(
     user_id: int,

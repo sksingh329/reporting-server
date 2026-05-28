@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user, require_admin
+from app.core.security import get_auth_principal, require_admin, AuthPrincipal
 from app.db.session import get_db
 from app.schemas.test_run import (
     ProjectCreate,
@@ -27,18 +27,18 @@ _404 = status.HTTP_404_NOT_FOUND
 # Projects
 # ---------------------------------------------------------------------------
 
-@router.get("/projects", response_model=list[ProjectOut], summary="List all projects")
-def list_projects(db: Session = Depends(get_db), _=Depends(get_current_user)) -> list[ProjectOut]:
+@router.get("/projects", response_model=list[ProjectOut], summary="List all projects [any · JWT/token]")
+def list_projects(db: Session = Depends(get_db), _=Depends(get_auth_principal)) -> list[ProjectOut]:
     return ingest_service.list_projects(db)
 
 
-@router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED, summary="Create a project")
+@router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED, summary="Create a project [admin · JWT/token]")
 def create_project(payload: ProjectCreate, db: Session = Depends(get_db), _=Depends(require_admin)) -> ProjectOut:
     return ingest_service.create_project(payload, db)
 
 
-@router.get("/projects/{project_id}", response_model=ProjectOut, summary="Get a project")
-def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> ProjectOut:
+@router.get("/projects/{project_id}", response_model=ProjectOut, summary="Get a project [any · JWT/token]")
+def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_auth_principal)) -> ProjectOut:
     result = ingest_service.get_project(project_id, db)
     if result is None:
         raise HTTPException(status_code=_404, detail="Project not found")
@@ -48,7 +48,7 @@ def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_cu
 @router.delete(
     "/projects/{project_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a project and all its data (admin only)",
+    summary="Delete a project and all its data [admin · JWT/token]",
 )
 def delete_project(
     project_id: int,
@@ -69,7 +69,7 @@ def delete_project(
     "/projects/{project_id}/test-cases",
     response_model=TestCaseOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Ingest a test execution",
+    summary="Ingest a test execution [any · JWT/token]",
 )
 async def create_test_case(
     project_id: int,
@@ -77,10 +77,11 @@ async def create_test_case(
     test_status: str = Form(..., alias="status"),
     duration_ms: Optional[float] = Form(None),
     error_message: Optional[str] = Form(None),
+    environment: Optional[str] = Form(None),
     log_text: Optional[str] = Form(None),
     screenshots: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    principal: AuthPrincipal = Depends(get_auth_principal),
 ) -> TestCaseOut:
     """Ingest one test execution. Returns 404 if the project does not exist."""
     log_storage_key: Optional[str] = None
@@ -118,12 +119,15 @@ async def create_test_case(
                 project_id=project_id,
                 test_name=test_name,
                 status=test_status,
+                environment=environment or "default",
                 duration_ms=duration_ms,
                 error_message=error_message,
                 log_storage_key=log_storage_key,
                 screenshots=screenshot_ins,
             ),
             db,
+            submitted_by_user_id=None if principal.is_service_token else principal.id,
+            submitted_by_token_id=principal.id if principal.is_service_token else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=_404, detail=str(exc))
@@ -132,15 +136,16 @@ async def create_test_case(
 @router.get(
     "/projects/{project_id}/test-cases",
     response_model=list[TestCaseSummaryOut],
-    summary="List all test cases with latest execution (optionally filtered by status)",
+    summary="List all test cases with latest execution (optionally filtered by status) [any · JWT/token]",
 )
 def list_test_cases(
     project_id: int,
     status: Optional[str] = Query(None, description="Filter by status: passed | failed | skipped | error"),
+    environment: Optional[str] = Query(None, description="Filter by environment, e.g. staging, production"),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(get_auth_principal),
 ) -> list[TestCaseSummaryOut]:
-    result = ingest_service.list_test_cases(project_id, db, status_filter=status)
+    result = ingest_service.list_test_cases(project_id, db, status_filter=status, environment_filter=environment)
     if result is None:
         raise HTTPException(status_code=_404, detail="Project not found")
     return result
@@ -149,9 +154,9 @@ def list_test_cases(
 @router.get(
     "/projects/{project_id}/test-cases/{test_case_id}",
     response_model=TestCaseOut,
-    summary="Get a test case with all its executions",
+    summary="Get a test case with all its executions [any · JWT/token]",
 )
-def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> TestCaseOut:
+def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_db), _=Depends(get_auth_principal)) -> TestCaseOut:
     result = ingest_service.get_test_case(project_id, test_case_id, db)
     if result is None:
         raise HTTPException(status_code=_404, detail="Test case not found")
@@ -161,7 +166,7 @@ def get_test_case(project_id: int, test_case_id: int, db: Session = Depends(get_
 @router.delete(
     "/projects/{project_id}/test-cases/{test_case_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a test case and all its executions (admin only)",
+    summary="Delete a test case and all its executions [admin · JWT/token]",
 )
 def delete_test_case(
     project_id: int,
@@ -181,10 +186,16 @@ def delete_test_case(
 @router.get(
     "/projects/{project_id}/test-cases/{test_case_id}/executions",
     response_model=list[TestExecutionOut],
-    summary="List all executions of a test case",
+    summary="List all executions of a test case [any · JWT/token]",
 )
-def list_executions(project_id: int, test_case_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)) -> list[TestExecutionOut]:
-    result = ingest_service.list_executions(project_id, test_case_id, db)
+def list_executions(
+    project_id: int,
+    test_case_id: int,
+    environment: Optional[str] = Query(None, description="Filter by environment, e.g. staging, production"),
+    db: Session = Depends(get_db),
+    _=Depends(get_auth_principal),
+) -> list[TestExecutionOut]:
+    result = ingest_service.list_executions(project_id, test_case_id, db, environment_filter=environment)
     if result is None:
         raise HTTPException(status_code=_404, detail="Test case not found")
     return result
@@ -193,10 +204,10 @@ def list_executions(project_id: int, test_case_id: int, db: Session = Depends(ge
 @router.get(
     "/projects/{project_id}/test-cases/{test_case_id}/executions/{execution_id}",
     response_model=TestExecutionOut,
-    summary="Get a single execution",
+    summary="Get a single execution [any · JWT/token]",
 )
 def get_execution(
-    project_id: int, test_case_id: int, execution_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)
+    project_id: int, test_case_id: int, execution_id: int, db: Session = Depends(get_db), _=Depends(get_auth_principal)
 ) -> TestExecutionOut:
     result = ingest_service.get_execution(project_id, test_case_id, execution_id, db)
     if result is None:
@@ -207,7 +218,7 @@ def get_execution(
 @router.delete(
     "/projects/{project_id}/test-cases/{test_case_id}/executions/{execution_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a single execution and its artifacts (admin only)",
+    summary="Delete a single execution and its artifacts [admin · JWT/token]",
 )
 def delete_execution(
     project_id: int,

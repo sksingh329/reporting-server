@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password, create_refresh_token_value
 from app.core.config import settings
-from app.db.models import RefreshToken, User, UserSettings
+from app.db.models import RefreshToken, ServiceToken, User, UserSettings
 from app.schemas.user import UserCreate, UserOut, UserSettingsOut, UserSettingsUpdate
 
 
@@ -134,3 +135,81 @@ def update_settings(user_id: int, payload: UserSettingsUpdate, db: Session) -> U
     db.commit()
     db.refresh(record)
     return UserSettingsOut.model_validate(record)
+
+
+# ---------------------------------------------------------------------------
+# Service token helpers
+# ---------------------------------------------------------------------------
+
+_SERVICE_TOKEN_PREFIX = "rpt_"
+
+
+def _generate_service_token() -> str:
+    return _SERVICE_TOKEN_PREFIX + secrets.token_urlsafe(48)
+
+
+def create_service_token(
+    name: str,
+    role: str,
+    db: Session,
+    expires_at: Optional[datetime] = None,
+    created_by_user_id: Optional[int] = None,
+) -> tuple[str, ServiceToken]:
+    """Generate a new service token, store its hash, return (raw_value, ORM record)."""
+    raw = _generate_service_token()
+    token = ServiceToken(
+        name=name,
+        role=role,
+        token_hash=_hash_token(raw),
+        expires_at=expires_at,
+        created_by_user_id=created_by_user_id,
+    )
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return raw, token
+
+
+def validate_service_token(raw: str, db: Session) -> Optional[ServiceToken]:
+    """Validate a raw service token string. Updates last_used_at on success."""
+    record = db.query(ServiceToken).filter(
+        ServiceToken.token_hash == _hash_token(raw),
+        ServiceToken.is_active == True,  # noqa: E712
+    ).first()
+    if record is None:
+        return None
+    if record.expires_at is not None:
+        expires = record.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
+            return None
+    record.last_used_at = datetime.now(timezone.utc)
+    db.commit()
+    return record
+
+
+def list_service_tokens(
+    db: Session,
+    created_by_user_id: Optional[int] = None,
+    include_inactive: bool = False,
+) -> list[ServiceToken]:
+    query = db.query(ServiceToken)
+    if not include_inactive:
+        query = query.filter(ServiceToken.is_active == True)  # noqa: E712
+    if created_by_user_id is not None:
+        query = query.filter(ServiceToken.created_by_user_id == created_by_user_id)
+    return query.order_by(ServiceToken.id).all()
+
+
+def get_service_token(token_id: int, db: Session) -> Optional[ServiceToken]:
+    return db.query(ServiceToken).filter(ServiceToken.id == token_id).first()
+
+
+def revoke_service_token(token_id: int, db: Session) -> bool:
+    record = db.query(ServiceToken).filter(ServiceToken.id == token_id).first()
+    if record is None:
+        return False
+    record.is_active = False
+    db.commit()
+    return True
