@@ -3,11 +3,11 @@ services:
     image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"   # S3-compatible API
-      - "9001:9001"   # MinIO web console
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -19,17 +19,19 @@ services:
   reporting-server:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      DATABASE_URL: sqlite:////data/reporting.db   # absolute path inside container
+      DATABASE_URL: ${DATABASE_URL}
       STORAGE_ENDPOINT: http://minio:9000
-      STORAGE_ACCESS_KEY: minio
-      STORAGE_SECRET_KEY: minio123
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: test-artifacts
       STORAGE_REGION: us-east-1
       PRESIGNED_URL_EXPIRY: "3600"
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
-      - /Users/subodhsingh/Desktop/subodh/automation/projects/reporting-db:/data  # reporting.db lives on your host at ./data/reporting.db
+      - ${DATA_PATH}:/data
     depends_on:
       minio:
         condition: service_healthy

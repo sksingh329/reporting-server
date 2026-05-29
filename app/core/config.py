@@ -42,6 +42,9 @@ class Settings:
     JWT_ACCESS_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_EXPIRE_DAYS: int = 30
 
+    # CORS — comma-separated allowed origins; use * for local dev
+    CORS_ORIGINS: str = "*"
+
 
 def _load_settings() -> Settings:
     return Settings(
@@ -56,6 +59,7 @@ def _load_settings() -> Settings:
         JWT_ALGORITHM=_get("JWT_ALGORITHM", "HS256"),
         JWT_ACCESS_EXPIRE_MINUTES=int(_get("JWT_ACCESS_EXPIRE_MINUTES", "30")),
         JWT_REFRESH_EXPIRE_DAYS=int(_get("JWT_REFRESH_EXPIRE_DAYS", "30")),
+        CORS_ORIGINS=_get("CORS_ORIGINS", "*"),
     )
 
 
