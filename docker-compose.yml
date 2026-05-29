@@ -3,8 +3,8 @@ services:
     image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
@@ -19,7 +19,7 @@ services:
   reporting-server:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL}
       STORAGE_ENDPOINT: http://minio:9000
