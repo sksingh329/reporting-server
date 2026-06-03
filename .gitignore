@@ -1,2 +1,4 @@
 data/reporting.db
 .env
+.env.test
+pip.conf
